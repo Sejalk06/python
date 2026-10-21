@@ -1,0 +1,74 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><title>EduVerse AI Lab – Browser Demo</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>
+:root{--bg:#070d1f;--panel:#111c3a;--tx:#e6edf7;--ac:#7fe3ff;--v:#7a5cf0;color-scheme:dark;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+*{box-sizing:border-box}body{margin:0;background:linear-gradient(160deg,#070d1f,#0d1a3a);color:var(--tx);font:16px/1.5 system-ui,Segoe UI,sans-serif;min-height:100vh}
+header{padding:16px 20px}h1{margin:0;font-size:1.4rem;color:var(--ac)}small{opacity:.7}
+nav{display:flex;gap:8px;padding:0 20px;flex-wrap:wrap}nav button,.btn{background:linear-gradient(90deg,#1fb6d6,var(--v));color:#fff;border:0;border-radius:10px;padding:9px 14px;cursor:pointer;font-size:.95rem}
+nav button.off{background:var(--panel);color:var(--tx)}
+main{padding:16px 20px;max-width:1100px;margin:auto}.card{background:rgba(255,255,255,.05);border:1px solid rgba(127,227,255,.18);border-radius:14px;padding:16px;margin-bottom:14px}
+textarea,select,input{width:100%;background:#0b1530;color:var(--tx);border:1px solid #2b3f72;border-radius:8px;padding:8px;font:inherit}
+.g{display:grid;grid-template-columns:1fr 1fr;gap:14px}@media(max-width:760px){.g{grid-template-columns:1fr}}
+h3{color:var(--ac);margin:.2em 0}.tag{display:inline-block;background:#1b2a5e;border-radius:20px;padding:2px 10px;margin:2px;font-size:.85rem}
+#c{height:380px;border-radius:12px;background:#0b1530;overflow:hidden}.hide{display:none}
+</style></head><body>
+<header><h1>EduVerse AI Lab</h1><small>Browser demo of the Python project · rule-based NLP, not a trained model</small></header>
+<nav><button id="b1" onclick="tab(1)">Lecture Studio</button><button id="b2" class="off" onclick="tab(2)">Study Companion</button><button id="b3" class="off" onclick="tab(3)">3D Chemistry Lab</button></nav>
+<main>
+<section id="t1"><div class="g"><div class="card"><h3>Transcript</h3>
+<textarea id="tx" rows="12">Photosynthesis is the process by which plants convert light into chemical energy. Chlorophyll absorbs light energy in the chloroplasts of plant cells. Glucose and oxygen are produced during photosynthesis in plants. Respiration is the process that releases energy from glucose in living cells. Mitochondria are the organelles where respiration takes place.</textarea>
+<p><button class="btn" onclick="gen()">Generate notes</button></p></div>
+<div class="card"><h3>Summary</h3><p id="sum">–</p><h3>Keywords</h3><div id="kw"></div><h3>Definitions</h3><div id="df"></div></div></div></section>
+<section id="t2" class="hide"><div class="card"><h3>Ask your notes</h3><input id="q" placeholder="e.g. What absorbs light energy?" oninput="ask()"><p id="ans"></p></div>
+<div class="card"><h3>Quiz (fill in the blank)</h3><div id="quiz"></div><p><button class="btn" onclick="mk()">New quiz</button></p></div></section>
+<section id="t3" class="hide"><div class="g"><div class="card"><h3>Experiment</h3><select id="ex" onchange="P=0;build()"></select>
+<p>Volume / mass <span id="vl">25</span></p><input type="range" id="qt" min="5" max="100" value="25" oninput="vl.textContent=this.value;build()">
+<p><button class="btn" onclick="run()">Run experiment</button></p><p id="eq" style="font-family:monospace"></p><p id="ob"></p><small>Drag to orbit · scroll to zoom</small></div>
+<div class="card"><div id="c"></div></div></div></section></main>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+const STOP=new Set("the and for that with this from are was were have has had not but you your can will would there their they them its into about which when what then than also such these those been being over more some any each other our out how why who one two".split());
+const $=i=>document.getElementById(i);
+function tab(n){[1,2,3].forEach(i=>{$("t"+i).classList.toggle("hide",i!=n);$("b"+i).classList.toggle("off",i!=n)});if(n==3)build()}
+const sents=t=>t.trim().split(/(?<=[.!?])\s+/).filter(s=>s.length>15);
+const wds=t=>(t.toLowerCase().match(/[a-z][a-z-]{2,}/g)||[]).filter(w=>!STOP.has(w));
+function kws(t,n=10){const f={};wds(t).forEach(w=>f[w]=(f[w]||0)+1);return Object.keys(f).sort((a,b)=>f[b]-f[a]).slice(0,n)}
+function summ(t,n=2){const ss=sents(t),f={};wds(t).forEach(w=>f[w]=(f[w]||0)+1);
+const sc=s=>{const w=wds(s);return w.reduce((a,x)=>a+f[x],0)/(w.length||1)};const top=[...ss].sort((a,b)=>sc(b)-sc(a)).slice(0,n);return ss.filter(s=>top.includes(s)).join(" ")}
+function defs(t){return [...t.matchAll(/([A-Z][A-Za-z\- ]{2,40}?) (?:is|are|refers to|means) ([^.]{10,200})\./g)].map(m=>[m[1],m[2]])}
+function gen(){const t=$("tx").value;$("sum").textContent=summ(t);$("kw").innerHTML=kws(t).map(k=>`<span class=tag>${k}</span>`).join("");
+$("df").innerHTML=defs(t).map(d=>`<p><b>${d[0]}</b> – ${d[1]}</p>`).join("")||"–";mk()}
+function ask(){const qw=new Set(wds($("q").value));let best=null,bs=0;sents($("tx").value).forEach(s=>{const o=wds(s).filter(w=>qw.has(w)).length;if(o>bs){bs=o;best=s}});
+$("ans").textContent=!$("q").value?"":bs>=2?best:"This is not covered in your notes."}
+function mk(){const t=$("tx").value,k=kws(t,20),out=[];
+sents(t).forEach(s=>{const hit=k.find(w=>new RegExp("\\b"+w+"\\b","i").test(s));if(!hit||out.length>=4)return;
+const pool=k.filter(w=>w!=hit).sort(()=>Math.random()-.5).slice(0,3),opts=[...pool,hit].sort(()=>Math.random()-.5);
+out.push(`<div class=card><p>${s.replace(new RegExp("\\b"+hit+"\\b","i"),"_____")}</p>${opts.map(o=>`<button class="btn" style="margin:3px" onclick="this.textContent=(this.textContent=='${hit}'?'✓ ':'✗ ')+this.textContent">${o}</button>`).join("")}</div>`)});
+$("quiz").innerHTML=out.join("")||"Add more text."}
+const EX={"Neutralisation":{eq:"HCl + NaOH → NaCl + H2O",ob:"Solution warms slightly (exothermic).",a:"#e8f4ff",b:"#e8f4ff",fx:"none"},
+"Copper hydroxide precipitation":{eq:"CuSO4 + 2NaOH → Cu(OH)2↓ + Na2SO4",ob:"Pale blue precipitate forms.",a:"#2f7de1",b:"#6fb7ff",fx:"p"},
+"Silver chloride precipitation":{eq:"AgNO3 + NaCl → AgCl↓ + NaNO3",ob:"Curdy white precipitate.",a:"#eef2f5",b:"#ffffff",fx:"p"},
+"Marble + acid (CO2)":{eq:"CaCO3 + 2HCl → CaCl2 + H2O + CO2↑",ob:"Effervescence of CO2.",a:"#e8f4ff",b:"#e8f4ff",fx:"b"},
+"Zinc + acid (H2)":{eq:"Zn + 2HCl → ZnCl2 + H2↑",ob:"Rapid bubbles of H2.",a:"#e8f4ff",b:"#e8f4ff",fx:"b"}};
+Object.keys(EX).forEach(k=>$("ex").add(new Option(k,k)));
+let sc,cam,ren,liq,ps=[],ry=0,rx=.25,z=9,drag=0,px=0,py=0,P=0,inited=0;
+function init(){const el=$("c"),W=el.clientWidth,H=380;sc=new THREE.Scene();cam=new THREE.PerspectiveCamera(45,W/H,.1,100);ren=new THREE.WebGLRenderer({antialias:true,alpha:true});ren.setSize(W,H);el.appendChild(ren.domElement);
+el.onmousedown=e=>{drag=1;px=e.clientX;py=e.clientY};window.onmouseup=()=>drag=0;
+window.onmousemove=e=>{if(drag){ry+=(e.clientX-px)*.01;rx=Math.max(-.2,Math.min(1.2,rx+(e.clientY-py)*.01));px=e.clientX;py=e.clientY}};
+el.onwheel=e=>{e.preventDefault();z=Math.max(5,Math.min(15,z+e.deltaY*.01))};
+(function loop(){requestAnimationFrame(loop);const fx=EX[$("ex").value].fx;
+ps.forEach(m=>{if(fx=="b"){m.position.y+=m.userData.s*(1+P*2);if(m.position.y>-1+m.userData.h)m.position.y=-1}else{m.position.y-=m.userData.s*.3;if(m.position.y<-1)m.position.y=-1+m.userData.h}});
+cam.position.set(Math.sin(ry)*z*Math.cos(rx),z*Math.sin(rx)+1,Math.cos(ry)*z*Math.cos(rx));cam.lookAt(0,0,0);ren.render(sc,cam)})()}
+function build(){if(!inited){init();inited=1}const e=EX[$("ex").value];sc.clear();
+sc.add(new THREE.AmbientLight(0xffffff,.6));const dl=new THREE.DirectionalLight(0x88ddff,.9);dl.position.set(4,6,5);sc.add(dl);
+const tb=new THREE.Mesh(new THREE.BoxGeometry(12,.3,6),new THREE.MeshStandardMaterial({color:0x1b2a4e}));tb.position.y=-1.15;sc.add(tb);
+const gl=new THREE.MeshPhysicalMaterial({color:0xaaeeee,transparent:true,opacity:.22});
+[[-3.2,.7,1.8],[3.2,.7,1.8],[0,1,2.4]].forEach(([x,r,h])=>{const g=new THREE.Mesh(new THREE.CylinderGeometry(r,r*.9,h,40,1,true),gl);g.position.set(x,h/2-1,0);sc.add(g)});
+const lh=2.2*Math.min(1,+$("qt").value/200+.15),col=new THREE.Color(e.a).lerp(new THREE.Color(e.b),P);
+liq=new THREE.Mesh(new THREE.CylinderGeometry(.95,.86,lh,40),new THREE.MeshStandardMaterial({color:col,transparent:true,opacity:.75}));liq.position.set(0,lh/2-1,0);sc.add(liq);
+ps=[];if(P>0&&e.fx!="none")for(let i=0;i<60;i++){const m=new THREE.Mesh(new THREE.SphereGeometry(.06,8,8),new THREE.MeshBasicMaterial({color:e.fx=="p"?e.b:0xffffff,transparent:true,opacity:.7}));
+m.position.set((Math.random()-.5)*1.4,-1+Math.random()*lh,(Math.random()-.5)*1.4);m.userData={s:.005+Math.random()*.02,h:lh};ps.push(m);sc.add(m)}
+$("eq").textContent="";$("ob").textContent=""}
+function run(){const e=EX[$("ex").value];P=1;build();$("eq").textContent=e.eq;$("ob").textContent="Observation: "+e.ob}
+gen();
+</script></body></html>
